@@ -1,0 +1,82 @@
+#!/usr/bin/env python2.7
+
+"""
+Function: Copies source file to destination and mark new seek pointer for next copy the same source file.
+"""
+
+import argparse
+import os
+
+debug = False
+
+parser = argparse.ArgumentParser(description='Copies source file to destination and mark new seek pointer for next '
+                                             'copy the same source file. Useful for big files.')
+parser.add_argument('src', help='source file')
+parser.add_argument('dst', help='destination file')
+args = parser.parse_args()
+
+src = args.src
+dst = args.dst
+dst_tmp = "%s.tmp" % dst
+
+
+class bcolors:
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+
+
+def dbg(msg):
+    if debug is True:
+        print("DEBUG: %s" % msg)
+
+
+if __name__ == '__main__':
+
+    if os.path.isfile(src):
+
+        # determine seek
+        src_seek = '/tmp/%s.seek' % os.path.basename(src)
+        if os.path.isfile(src_seek):
+            dbg("using src seek file %s" % src_seek)
+            with open(src_seek) as f:
+                seek_pointer = int(f.readline())
+        else:
+            dbg("creating src seek file %s" % src_seek)
+            file_ = open(src_seek, 'w')
+            file_.write("0")
+            file_.close()
+            seek_pointer = 0
+
+        # reset seek if src filesize < seek
+        if seek_pointer > 0:
+            statinfo = os.stat(src)
+            dbg("size src file %s" % statinfo.st_size)
+
+            if statinfo.st_size < seek_pointer:
+                seek_pointer = 0
+                dbg("resetting seek file to zero")
+
+        dbg("seek pointer %s" % seek_pointer)
+
+        # copy
+        with open(src) as f:
+            f.seek(seek_pointer)
+            with open(dst_tmp, "w") as f1:
+                for line in f:
+                    f1.write(line)
+            f1.close()
+
+            # save seek
+            file_ = open(src_seek, 'w')
+            file_.write("%s" % f.tell())
+            file_.close()
+
+        f.close()
+
+        # rename dst_tmp to dst
+        dbg("rename from %s to %s" % (dst_tmp, dst))
+        os.rename(dst_tmp, dst)
+
+    else:
+        print(bcolors.FAIL + "Error: src file not exists: %s" % src + bcolors.ENDC)
+        exit(1)
